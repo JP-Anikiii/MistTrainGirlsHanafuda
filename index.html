@@ -25,11 +25,25 @@
         .card:hover {
             border: 2px solid #00f;
         }
+        .card.matched {
+            animation: blink 0.5s ease-in-out 2;
+            border: 2px solid red;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
         #field, #player-hand, #deck, #player-collected, #ai-hand, #ai-collected {
             margin: 10px;
             display: flex;
             flex-wrap: wrap;
             align-items: center;
+        }
+        #field {
+            background-color: #e0ffe0;
+            padding: 5px;
+            border: 1px solid #ccc;
         }
         button {
             padding: 10px 20px;
@@ -92,6 +106,11 @@
             font-size: 18px;
             font-weight: bold;
         }
+        #player-koi-status, #ai-koi-status {
+            font-size: 16px;
+            color: #d32f2f;
+            font-weight: bold;
+        }
         @media (max-width: 600px) {
             .card {
                 width: 50px;
@@ -118,7 +137,9 @@
     <h1>花札 - こいこい</h1>
     <div id="score-board">
         <div id="player-score-details">プレイヤーの得点: <span id="player-points">0</span>点 (合計: <span id="player-total">0</span>点)</div>
+        <div id="player-koi-status"></div>
         <div id="ai-score-details">AIの得点: <span id="ai-points">0</span>点 (合計: <span id="ai-total">0</span>点)</div>
+        <div id="ai-koi-status"></div>
     </div>
     <div id="control-panel">
         <button id="draw-button" onclick="drawFromDeck('player')">山札を引く</button>
@@ -304,6 +325,9 @@
             const [aiPoints] = calculateScore(aiCollected);
             document.getElementById("ai-score-details").innerHTML = `AIの得点: ${aiPoints * aiMultiplier}点 (合計: ${aiTotalScore}点)`;
 
+            document.getElementById("player-koi-status").textContent = playerMultiplier > 1 ? "こいこい中 (倍率: " + playerMultiplier + "倍)" : "";
+            document.getElementById("ai-koi-status").textContent = aiMultiplier > 1 ? "こいこい中 (倍率: " + aiMultiplier + "倍)" : "";
+
             const drawButton = document.getElementById("draw-button");
             const koiButton = document.getElementById("koi-button");
             const endButton = document.getElementById("end-button");
@@ -338,34 +362,78 @@
             }
 
             const drawnCard = deck.pop();
+            console.log(`引いたカード: ${drawnCard.name} (${drawnCard.month})`);
             const matchedIndices = field.reduce((acc, card, i) => {
                 if (card?.month === drawnCard.month) acc.push(i);
                 return acc;
             }, []);
+            console.log(`マッチしたインデックス: ${matchedIndices.map(i => `${i}: ${field[i].name}`).join(", ")}`);
 
             if (matchedIndices.length === 1) {
-                if (player === "player") {
-                    playerCollected.push(drawnCard, field.splice(matchedIndices[0], 1)[0]);
-                } else {
-                    aiCollected.push(drawnCard, field.splice(matchedIndices[0], 1)[0]);
-                }
+                const matchIndex = matchedIndices[0];
+                const matchedCard = field[matchIndex];
+                console.log(`単一マッチ - 点滅/取得対象: ${matchedCard.name} (インデックス: ${matchIndex})`);
+                highlightMatch(matchIndex, () => {
+                    const removedCard = field.splice(matchIndex, 1)[0];
+                    console.log(`実際に取得したカード: ${removedCard.name}`);
+                    if (player === "player") {
+                        playerCollected.push(drawnCard, removedCard);
+                    } else {
+                        aiCollected.push(drawnCard, removedCard);
+                    }
+                    finishDraw(player);
+                });
             } else if (matchedIndices.length > 1) {
                 const bestIndex = chooseBestCard(drawnCard, matchedIndices, player);
-                if (player === "player") {
-                    playerCollected.push(drawnCard, field.splice(bestIndex, 1)[0]);
-                } else {
-                    aiCollected.push(drawnCard, field.splice(bestIndex, 1)[0]);
-                }
+                const matchedCard = field[bestIndex];
+                console.log(`複数マッチ - 選択された点滅/取得対象: ${matchedCard.name} (インデックス: ${bestIndex})`);
+                highlightMatch(bestIndex, () => {
+                    const removedCard = field.splice(bestIndex, 1)[0];
+                    console.log(`実際に取得したカード: ${removedCard.name}`);
+                    if (player === "player") {
+                        playerCollected.push(drawnCard, removedCard);
+                    } else {
+                        aiCollected.push(drawnCard, removedCard);
+                    }
+                    finishDraw(player);
+                });
             } else {
                 field.push(drawnCard);
+                console.log(`マッチなし - 場に追加: ${drawnCard.name}`);
+                finishDraw(player);
             }
+        }
 
+        function highlightMatch(index, callback) {
+            const fieldDiv = document.getElementById("field");
+            const cards = fieldDiv.getElementsByClassName("card");
+            let targetCard = null;
+            for (let card of cards) {
+                if (parseInt(card.dataset.index) === index) {
+                    targetCard = card;
+                    break;
+                }
+            }
+            if (targetCard) {
+                console.log(`点滅開始: インデックス ${index}`);
+                targetCard.classList.add("matched");
+                setTimeout(() => {
+                    targetCard.classList.remove("matched");
+                    console.log(`点滅終了: インデックス ${index}`);
+                    callback();
+                }, 1000);
+            } else {
+                console.log(`警告: インデックス ${index} のカードが見つかりません`);
+                callback();
+            }
+        }
+
+        function finishDraw(player) {
             if (player === "player") {
                 hasDrawn = true;
                 document.getElementById("message").textContent = "山札から引きました。手札から出してください。";
             }
             renderGame();
-
             if (player === "ai") {
                 setTimeout(() => aiPlayCard(), 1000);
             }
@@ -373,19 +441,35 @@
 
         function chooseBestCard(drawnCard, matchedIndices, player) {
             const candidates = matchedIndices.map(index => field[index]).filter(card => card !== undefined);
-            if (candidates.length === 0) return matchedIndices[0] || 0;
+            console.log(`候補カード: ${candidates.map(c => c.name).join(", ")}`);
+            
+            if (candidates.length === 0) {
+                console.log("候補なし、最初のインデックスを返す");
+                return matchedIndices[0] || 0;
+            }
+
             if (player === "ai") {
                 const collected = [...aiCollected, drawnCard];
-                return matchedIndices[candidates.reduce((bestIdx, card, i) => {
+                const bestIdx = candidates.reduce((bestIdx, card, i) => {
                     const tempCollected = [...collected, card];
                     const [currentScore] = calculateScore([...collected, candidates[bestIdx] || { value: 0 }]);
                     const [newScore] = calculateScore(tempCollected);
+                    console.log(`AI選択 - ${card.name}: 新スコア=${newScore}, 現スコア=${currentScore}`);
                     return newScore > currentScore ? i : bestIdx;
-                }, 0)];
+                }, 0);
+                const chosenIndex = matchedIndices[bestIdx];
+                console.log(`AIが選択したカード: ${candidates[bestIdx].name} (インデックス: ${chosenIndex})`);
+                return chosenIndex;
             }
-            return matchedIndices[candidates.reduce((bestIdx, card, i) => {
-                return card.value > (candidates[bestIdx]?.value || 0) ? i : bestIdx;
-            }, 0)];
+
+            const bestIdx = candidates.reduce((bestIdx, card, i) => {
+                const currentValue = candidates[bestIdx]?.value || 0;
+                console.log(`プレイヤー選択 - ${card.name}: 価値=${card.value}, 現価値=${currentValue}`);
+                return card.value > currentValue ? i : bestIdx;
+            }, 0);
+            const chosenIndex = matchedIndices[bestIdx];
+            console.log(`プレイヤーが選択したカード: ${candidates[bestIdx].name} (インデックス: ${chosenIndex})`);
+            return chosenIndex;
         }
 
         function playCard(index) {
@@ -469,7 +553,7 @@
                         showOptions(multiplier > 1);
                         return;
                     }
-                } else { // AIの場合
+                } else {
                     aiScore = newPoints;
                     if (!isGameOver) {
                         const potentialScore = estimatePotentialScore(aiHand, field);
@@ -675,5 +759,5 @@
             document.getElementById("start-6").addEventListener("click", () => startGame(6, true));
         });
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'92559655180cadcf',t:'MTc0MjgxMzIxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
