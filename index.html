@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>花札 - こいこい</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        .card {
+            width: 80px;
+            height: 120px;
+            border: 1px solid #000;
+            display: inline-block;
+            margin: 5px;
+            cursor: pointer;
+            background-size: cover;
+            background-position: center;
+        }
+        .card:hover {
+            border: 2px solid #00f;
+        }
+        #field, #player-hand, #deck, #player-collected, #ai-hand, #ai-collected {
+            margin: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            display: none;
+        }
+        #game-mode-selection button {
+            display: inline-block;
+        }
+        .active {
+            display: inline-block;
+        }
+        #game-mode-selection {
+            text-align: center;
+            margin: 20px;
+            display: block;
+        }
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            margin: 10px 0;
+        }
+        #message {
+            text-align: center;
+            font-size: 18px;
+            padding: 10px;
+            white-space: pre-wrap;
+            background-color: #f0f8ff;
+            color: #333;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+        #deck {
+            position: relative;
+        }
+        #draw-button {
+            background-color: #4CAF50;
+            color: white;
+            font-weight: bold;
+            padding: 12px 24px;
+        }
+        #control-panel {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ccc;
+        }
+        #score-board {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px;
+            background-color: #e0f7fa;
+            border-bottom: 2px solid #007bff;
+            margin-bottom: 10px;
+        }
+        #score-board div {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        @media (max-width: 600px) {
+            .card {
+                width: 50px;
+                height: 75px;
+                margin: 2px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            #message {
+                font-size: 14px;
+            }
+            button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            #score-board div {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>花札 - こいこい</h1>
+    <div id="score-board">
+        <div id="player-score-details">プレイヤーの得点: <span id="player-points">0</span>点 (合計: <span id="player-total">0</span>点)</div>
+        <div id="ai-score-details">AIの得点: <span id="ai-points">0</span>点 (合計: <span id="ai-total">0</span>点)</div>
+    </div>
+    <div id="control-panel">
+        <button id="draw-button" onclick="drawFromDeck('player')">山札を引く</button>
+        <button id="koi-button" onclick="callKoi()">こいこい</button>
+        <button id="end-button" onclick="endTurn()">上がり</button>
+        <button id="restart-button" onclick="nextRound()">次の局へ</button>
+    </div>
+    <div id="message">ゲームモードを選択してください。</div>
+    <div id="game-mode-selection">
+        <button id="start-1-player">1局で対戦 (プレイヤー先手)</button>
+        <button id="start-1-ai">1局で対戦 (AI先手)</button>
+        <button id="start-3">3局で対戦 (ローテーション)</button>
+        <button id="start-6">6局で対戦 (ローテーション)</button>
+    </div>
+    <div id="deck">
+        山札: <span id="deck-count">0</span>
+    </div>
+    <div id="field">場:</div>
+    <div id="player-hand">プレイヤーの手札:</div>
+    <div id="player-collected">プレイヤーの獲得札:</div>
+    <div id="ai-hand">AIの残り手札: <span id="ai-hand-count">0</span></div>
+    <div id="ai-collected">AIの獲得札:</div>
+
+    <script>
+        const hanafudaCards = [
+            { month: "1月", type: "松", value: 20, name: "松の光", image: "images/january_hikari.png" },
+            { month: "1月", type: "松", value: 5, name: "松の短", image: "images/january_tan.png" },
+            { month: "1月", type: "松", value: 1, name: "松のカス1", image: "images/january_kasu1.png" },
+            { month: "1月", type: "松", value: 1, name: "松のカス2", image: "images/january_kasu2.png" },
+            { month: "2月", type: "梅", value: 10, name: "梅の種", image: "images/february_tane.png" },
+            { month: "2月", type: "梅", value: 5, name: "梅の短", image: "images/february_tan.png" },
+            { month: "2月", type: "梅", value: 1, name: "梅のカス1", image: "images/february_kasu1.png" },
+            { month: "2月", type: "梅", value: 1, name: "梅のカス2", image: "images/february_kasu2.png" },
+            { month: "3月", type: "桜", value: 20, name: "桜の光", image: "images/march_hikari.png" },
+            { month: "3月", type: "桜", value: 5, name: "桜の短", image: "images/march_tan.png" },
+            { month: "3月", type: "桜", value: 1, name: "桜のカス1", image: "images/march_kasu1.png" },
+            { month: "3月", type: "桜", value: 1, name: "桜のカス2", image: "images/march_kasu2.png" },
+            { month: "4月", type: "藤", value: 10, name: "藤の種", image: "images/april_tane.png" },
+            { month: "4月", type: "藤", value: 5, name: "藤の短", image: "images/april_tan.png" },
+            { month: "4月", type: "藤", value: 1, name: "藤のカス1", image: "images/april_kasu1.png" },
+            { month: "4月", type: "藤", value: 1, name: "藤のカス2", image: "images/april_kasu2.png" },
+            { month: "5月", type: "菖蒲", value: 10, name: "菖蒲の種", image: "images/may_tane.png" },
+            { month: "5月", type: "菖蒲", value: 5, name: "菖蒲の短", image: "images/may_tan.png" },
+            { month: "5月", type: "菖蒲", value: 1, name: "菖蒲のカス1", image: "images/may_kasu1.png" },
+            { month: "5月", type: "菖蒲", value: 1, name: "菖蒲のカス2", image: "images/may_kasu2.png" },
+            { month: "6月", type: "牡丹", value: 10, name: "牡丹の種", image: "images/june_tane.png" },
+            { month: "6月", type: "牡丹", value: 5, name: "牡丹の短", image: "images/june_tan.png" },
+            { month: "6月", type: "牡丹", value: 1, name: "牡丹のカス1", image: "images/june_kasu1.png" },
+            { month: "6月", type: "牡丹", value: 1, name: "牡丹のカス2", image: "images/june_kasu2.png" },
+            { month: "7月", type: "萩", value: 10, name: "萩の種", image: "images/july_tane.png" },
+            { month: "7月", type: "萩", value: 5, name: "萩の短", image: "images/july_tan.png" },
+            { month: "7月", type: "萩", value: 1, name: "萩のカス1", image: "images/july_kasu1.png" },
+            { month: "7月", type: "萩", value: 1, name: "萩のカス2", image: "images/july_kasu2.png" },
+            { month: "8月", type: "芒", value: 20, name: "芒の光", image: "images/august_hikari.png" },
+            { month: "8月", type: "芒", value: 10, name: "芒の種", image: "images/august_tane.png" },
+            { month: "8月", type: "芒", value: 1, name: "芒のカス1", image: "images/august_kasu1.png" },
+            { month: "8月", type: "芒", value: 1, name: "芒のカス2", image: "images/august_kasu2.png" },
+            { month: "9月", type: "菊", value: 10, name: "菊の種", image: "images/september_tane.png" },
+            { month: "9月", type: "菊", value: 5, name: "菊の短", image: "images/september_tan.png" },
+            { month: "9月", type: "菊", value: 1, name: "菊のカス1", image: "images/september_kasu1.png" },
+            { month: "9月", type: "菊", value: 1, name: "菊のカス2", image: "images/september_kasu2.png" },
+            { month: "10月", type: "紅葉", value: 10, name: "紅葉の種", image: "images/october_tane.png" },
+            { month: "10月", type: "紅葉", value: 5, name: "紅葉の短", image: "images/october_tan.png" },
+            { month: "10月", type: "紅葉", value: 1, name: "紅葉のカス1", image: "images/october_kasu1.png" },
+            { month: "10月", type: "紅葉", value: 1, name: "紅葉のカス2", image: "images/october_kasu2.png" },
+            { month: "11月", type: "柳", value: 20, name: "柳の光", image: "images/november_hikari.png" },
+            { month: "11月", type: "柳", value: 10, name: "柳の種", image: "images/november_tane.png" },
+            { month: "11月", type: "柳", value: 5, name: "柳の短", image: "images/november_tan.png" },
+            { month: "11月", type: "柳", value: 1, name: "柳のカス", image: "images/november_kasu.png" },
+            { month: "12月", type: "桐", value: 20, name: "桐の光", image: "images/december_hikari.png" },
+            { month: "12月", type: "桐", value: 1, name: "桐のカス1", image: "images/december_kasu1.png" },
+            { month: "12月", type: "桐", value: 1, name: "桐のカス2", image: "images/december_kasu2.png" },
+            { month: "12月", type: "桐", value: 1, name: "桐のカス3", image: "images/december_kasu3.png" },
+        ];
+
+        let deck = [];
+        let field = [];
+        let playerHand = [];
+        let aiHand = [];
+        let playerCollected = [];
+        let aiCollected = [];
+        let playerScore = 0;
+        let aiScore = 0;
+        let playerTotalScore = 0;
+        let aiTotalScore = 0;
+        let playerMultiplier = 1;
+        let aiMultiplier = 1;
+        let isPlayerTurn = true;
+        let isGameOver = false;
+        let currentRound = 0;
+        let totalRounds = 0;
+        let hasDrawn = false;
+        let playerEnded = false;
+
+        function startGame(rounds, playerFirst) {
+            totalRounds = rounds;
+            currentRound = 1;
+            playerTotalScore = 0;
+            aiTotalScore = 0;
+            document.getElementById("game-mode-selection").style.display = "none";
+            initRound(playerFirst);
+            console.log("Game started with", rounds, "rounds, playerFirst:", playerFirst);
+        }
+
+        function initRound(playerFirst) {
+            deck = shuffle([...hanafudaCards]);
+            field = deck.splice(0, 8);
+            playerHand = deck.splice(0, 8);
+            aiHand = deck.splice(0, 8);
+            playerCollected = [];
+            aiCollected = [];
+            playerScore = 0;
+            aiScore = 0;
+            playerMultiplier = 1;
+            aiMultiplier = 1;
+            isGameOver = false;
+            hasDrawn = false;
+            playerEnded = false;
+            isPlayerTurn = totalRounds > 1 ? (currentRound % 2 === 1 ? playerFirst : !playerFirst) : playerFirst;
+            document.getElementById("message").textContent = `第${currentRound}局開始！${isPlayerTurn ? "プレイヤー" : "AI"}の手番です。${isPlayerTurn ? "「山札を引く」を押してください。" : ""}`;
+            renderGame();
+            if (!isPlayerTurn) setTimeout(() => drawFromDeck("ai"), 1000);
+        }
+
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function renderGame() {
+            document.getElementById("deck-count").textContent = deck.length;
+            const fieldDiv = document.getElementById("field");
+            const handDiv = document.getElementById("player-hand");
+            const playerCollectedDiv = document.getElementById("player-collected");
+            const aiCollectedDiv = document.getElementById("ai-collected");
+            const aiHandCount = document.getElementById("ai-hand-count");
+
+            fieldDiv.innerHTML = "場: ";
+            field.forEach((card, index) => {
+                const cardElement = document.createElement("div");
+                cardElement.className = "card";
+                cardElement.style.backgroundImage = `url(${card.image})`;
+                cardElement.dataset.index = index;
+                fieldDiv.appendChild(cardElement);
+            });
+
+            handDiv.innerHTML = "プレイヤーの手札: ";
+            playerHand.forEach((card, index) => {
+                const cardElement = document.createElement("div");
+                cardElement.className = "card";
+                cardElement.style.backgroundImage = `url(${card.image})`;
+                if (isPlayerTurn && !isGameOver && hasDrawn) {
+                    cardElement.onclick = () => playCard(index);
+                } else {
+                    cardElement.style.cursor = "default";
+                }
+                handDiv.appendChild(cardElement);
+            });
+
+            playerCollectedDiv.innerHTML = "プレイヤーの獲得札: ";
+            playerCollected.forEach(card => {
+                const cardElement = document.createElement("div");
+                cardElement.className = "card";
+                cardElement.style.backgroundImage = `url(${card.image})`;
+                playerCollectedDiv.appendChild(cardElement);
+            });
+
+            aiHandCount.textContent = aiHand.length;
+
+            aiCollectedDiv.innerHTML = "AIの獲得札: ";
+            aiCollected.forEach(card => {
+                const cardElement = document.createElement("div");
+                cardElement.className = "card";
+                cardElement.style.backgroundImage = isGameOver ? `url(${card.image})` : `url(images/back.png)`;
+                aiCollectedDiv.appendChild(cardElement);
+            });
+
+            const [playerPoints] = calculateScore(playerCollected);
+            document.getElementById("player-score-details").innerHTML = `プレイヤーの得点: ${playerPoints * playerMultiplier}点 (合計: ${playerTotalScore}点)`;
+            const [aiPoints] = calculateScore(aiCollected);
+            document.getElementById("ai-score-details").innerHTML = `AIの得点: ${aiPoints * aiMultiplier}点 (合計: ${aiTotalScore}点)`;
+
+            const drawButton = document.getElementById("draw-button");
+            const koiButton = document.getElementById("koi-button");
+            const endButton = document.getElementById("end-button");
+            const restartButton = document.getElementById("restart-button");
+
+            drawButton.classList.remove("active");
+            koiButton.classList.remove("active");
+            endButton.classList.remove("active");
+            restartButton.classList.remove("active");
+
+            if (currentRound === 0) {
+                document.getElementById("game-mode-selection").style.display = "block";
+            } else {
+                document.getElementById("game-mode-selection").style.display = "none";
+                if (isPlayerTurn && !isGameOver && !hasDrawn) {
+                    drawButton.classList.add("active");
+                }
+                if (isGameOver) {
+                    restartButton.classList.add("active");
+                }
+            }
+        }
+
+        function drawFromDeck(player) {
+            if (deck.length === 0) {
+                switchTurn(player);
+                return;
+            }
+            if (player === "player" && hasDrawn) {
+                document.getElementById("message").textContent = "既に山札を引いています。手札から出してください。";
+                return;
+            }
+
+            const drawnCard = deck.pop();
+            const matchedIndices = field.reduce((acc, card, i) => {
+                if (card?.month === drawnCard.month) acc.push(i);
+                return acc;
+            }, []);
+
+            if (matchedIndices.length === 1) {
+                if (player === "player") {
+                    playerCollected.push(drawnCard, field.splice(matchedIndices[0], 1)[0]);
+                } else {
+                    aiCollected.push(drawnCard, field.splice(matchedIndices[0], 1)[0]);
+                }
+            } else if (matchedIndices.length > 1) {
+                const bestIndex = chooseBestCard(drawnCard, matchedIndices, player);
+                if (player === "player") {
+                    playerCollected.push(drawnCard, field.splice(bestIndex, 1)[0]);
+                } else {
+                    aiCollected.push(drawnCard, field.splice(bestIndex, 1)[0]);
+                }
+            } else {
+                field.push(drawnCard);
+            }
+
+            if (player === "player") {
+                hasDrawn = true;
+                document.getElementById("message").textContent = "山札から引きました。手札から出してください。";
+            }
+            renderGame();
+
+            if (player === "ai") {
+                setTimeout(() => aiPlayCard(), 1000);
+            }
+        }
+
+        function chooseBestCard(drawnCard, matchedIndices, player) {
+            const candidates = matchedIndices.map(index => field[index]).filter(card => card !== undefined);
+            if (candidates.length === 0) return matchedIndices[0] || 0;
+            if (player === "ai") {
+                const collected = [...aiCollected, drawnCard];
+                return matchedIndices[candidates.reduce((bestIdx, card, i) => {
+                    const tempCollected = [...collected, card];
+                    const [currentScore] = calculateScore([...collected, candidates[bestIdx] || { value: 0 }]);
+                    const [newScore] = calculateScore(tempCollected);
+                    return newScore > currentScore ? i : bestIdx;
+                }, 0)];
+            }
+            return matchedIndices[candidates.reduce((bestIdx, card, i) => {
+                return card.value > (candidates[bestIdx]?.value || 0) ? i : bestIdx;
+            }, 0)];
+        }
+
+        function playCard(index) {
+            if (!isPlayerTurn || isGameOver || !hasDrawn) {
+                if (!hasDrawn) document.getElementById("message").textContent = "先に山札を引いてください。";
+                return;
+            }
+            const playedCard = playerHand.splice(index, 1)[0];
+            const matchedIndices = field.reduce((acc, card, i) => {
+                if (card?.month === playedCard.month) acc.push(i);
+                return acc;
+            }, []);
+
+            if (matchedIndices.length === 1) {
+                playerCollected.push(playedCard, field.splice(matchedIndices[0], 1)[0]);
+            } else if (matchedIndices.length > 1) {
+                const bestIndex = chooseBestCard(playedCard, matchedIndices, "player");
+                playerCollected.push(playedCard, field.splice(bestIndex, 1)[0]);
+            } else {
+                field.push(playedCard);
+            }
+
+            renderGame();
+            checkForYaku("player");
+        }
+
+        function aiPlayCard() {
+            if (aiHand.length === 0 && playerHand.length > 0) {
+                switchTurn("ai");
+                return;
+            }
+            const bestCardIndex = aiHand.reduce((bestIdx, card, i) => {
+                const matchedIndices = field.reduce((acc, fCard, j) => {
+                    if (fCard?.month === card.month) acc.push(j);
+                    return acc;
+                }, []);
+                if (matchedIndices.length === 0) return bestIdx;
+                const bestMatchIndex = chooseBestCard(card, matchedIndices, "ai");
+                const tempCollected = [...aiCollected, card, field[bestMatchIndex]].filter(item => item !== undefined);
+                const bestMatchIndicesForBestIdx = field.reduce((acc, fCard, j) => {
+                    if (fCard?.month === aiHand[bestIdx]?.month) acc.push(j);
+                    return acc;
+                }, []);
+                const bestMatchForBestIdx = bestMatchIndicesForBestIdx.length > 0 ? chooseBestCard(aiHand[bestIdx], bestMatchIndicesForBestIdx, "ai") : -1;
+                const currentCollection = bestMatchForBestIdx >= 0 ? [...aiCollected, aiHand[bestIdx], field[bestMatchForBestIdx]] : [...aiCollected, aiHand[bestIdx]];
+                const [currentScore] = calculateScore(currentCollection.filter(item => item !== undefined));
+                const [newScore] = calculateScore(tempCollected);
+                return newScore > currentScore ? i : bestIdx;
+            }, 0);
+
+            const aiCard = aiHand.splice(bestCardIndex, 1)[0];
+            const matchedIndices = field.reduce((acc, card, i) => {
+                if (card?.month === aiCard.month) acc.push(i);
+                return acc;
+            }, []);
+
+            if (matchedIndices.length === 1) {
+                aiCollected.push(aiCard, field.splice(matchedIndices[0], 1)[0]);
+            } else if (matchedIndices.length > 1) {
+                const bestIndex = chooseBestCard(aiCard, matchedIndices, "ai");
+                aiCollected.push(aiCard, field.splice(bestIndex, 1)[0]);
+            } else {
+                field.push(aiCard);
+            }
+
+            renderGame();
+            checkForYaku("ai");
+        }
+
+        function checkForYaku(player) {
+            const collected = player === "player" ? playerCollected : aiCollected;
+            const currentScore = player === "player" ? playerScore : aiScore;
+            const multiplier = player === "player" ? playerMultiplier : aiMultiplier;
+            const [newPoints] = calculateScore(collected);
+            const handLength = player === "player" ? playerHand.length : aiHand.length;
+
+            if (newPoints > currentScore && handLength > 0) {
+                if (player === "player") {
+                    playerScore = newPoints;
+                    if (isPlayerTurn && !isGameOver) {
+                        showOptions(multiplier > 1);
+                        return;
+                    }
+                } else {
+                    aiScore = newPoints;
+                    const potentialScore = estimatePotentialScore(aiHand, field);
+                    if (potentialScore + newPoints * aiMultiplier > playerScore * playerMultiplier && aiHand.length > 2) {
+                        aiMultiplier *= 2;
+                        document.getElementById("message").textContent = "AIが「こいこい」を宣言しました！";
+                        setTimeout(() => switchTurn("ai"), 1000);
+                        return;
+                    }
+                }
+            }
+
+            if (playerHand.length > 0 || aiHand.length > 0) {
+                if (player === "player" && multiplier > 1) {
+                    document.getElementById("message").textContent = "「こいこい」中です。次の手番へ。";
+                } else if (player === "ai" && multiplier > 1) {
+                    document.getElementById("message").textContent = "AIが「こいこい」中です。次の手番へ。";
+                }
+                switchTurn(player);
+            } else {
+                endGame();
+            }
+        }
+
+        function estimatePotentialScore(hand, field) {
+            let potential = 0;
+            hand.forEach(card => {
+                const matches = field.filter(fCard => fCard?.month === card.month);
+                if (matches.length > 0) {
+                    potential += matches.reduce((max, c) => Math.max(max, c?.value || 0), 0);
+                }
+            });
+            return potential / 2;
+        }
+
+        function switchTurn(player) {
+            if (playerHand.length === 0 && aiHand.length === 0) {
+                endGame();
+                return;
+            }
+            isPlayerTurn = player === "player" ? false : true;
+            hasDrawn = false;
+            renderGame();
+            if (isPlayerTurn) {
+                document.getElementById("message").textContent = "プレイヤーの手番です。「山札を引く」を押してください。";
+            } else {
+                setTimeout(() => drawFromDeck("ai"), 1000);
+            }
+        }
+
+        function calculateScore(collected) {
+            let points = 0;
+            const details = [];
+            const brights = collected.filter(card => card?.value === 20);
+            const animals = collected.filter(card => card?.value === 10);
+            const ribbons = collected.filter(card => card?.value === 5);
+            const chaff = collected.filter(card => card?.value === 1);
+
+            if (brights.length === 5) { points += 15; details.push("五光: 15点"); }
+            else if (brights.length === 4) {
+                const hasRain = brights.some(card => card?.name === "柳の光");
+                points += hasRain ? 8 : 10;
+                details.push(hasRain ? "雨入り四光: 8点" : "四光: 10点");
+            } else if (brights.length === 3 && !brights.some(card => card?.name === "柳の光")) {
+                points += 5; details.push("三光: 5点");
+            }
+
+            if (animals.length >= 5) {
+                const extraPoints = animals.length - 4;
+                points += extraPoints; details.push(`種札${animals.length}枚: ${extraPoints}点`);
+            }
+            if (collected.some(card => card?.name === "萩の種") && collected.some(card => card?.name === "紅葉の種") && collected.some(card => card?.name === "牡丹の種")) {
+                points += 5; details.push("猪鹿蝶: 5点");
+            }
+
+            if (ribbons.length >= 5) {
+                const extraPoints = ribbons.length - 4;
+                points += extraPoints; details.push(`短冊${ribbons.length}枚: ${extraPoints}点`);
+            }
+
+            if (chaff.length >= 10) {
+                const extraPoints = chaff.length - 9;
+                points += extraPoints; details.push(`カス${chaff.length}枚: ${extraPoints}点`);
+            }
+
+            if (collected.some(card => card?.name === "桜の光") && collected.some(card => card?.name === "菊の種")) {
+                points += 5; details.push("花見で一杯: 5点");
+            }
+            if (collected.some(card => card?.name === "芒の光") && collected.some(card => card?.name === "菊の種")) {
+                points += 5; details.push("月見で一杯: 5点");
+            }
+
+            if (collected.some(card => card?.name === "松の短") && collected.some(card => card?.name === "梅の短") && collected.some(card => card?.name === "桜の短")) {
+                points += 5; details.push("赤短三光: 5点");
+            }
+            if (collected.some(card => card?.name === "牡丹の短") && collected.some(card => card?.name === "菊の短") && collected.some(card => card?.name === "紅葉の短")) {
+                points += 5; details.push("青短三光: 5点");
+            }
+
+            if (details.length === 0) details.push("役なし: 0点");
+            return [points, details];
+        }
+
+        function showOptions(isKoiActive = false) {
+            document.getElementById("koi-button").classList.add("active");
+            document.getElementById("end-button").classList.add("active");
+            document.getElementById("message").textContent = isKoiActive ?
+                "新たに役が成立しました！再度「こいこい」か「上がり」を選んでください。" :
+                "役が成立しました！「こいこい」か「上がり」を選んでください。";
+        }
+
+        function callKoi() {
+            playerMultiplier *= 2;
+            document.getElementById("message").textContent = "「こいこい」を宣言しました！";
+            document.getElementById("koi-button").classList.remove("active");
+            document.getElementById("end-button").classList.remove("active");
+            switchTurn("player");
+        }
+
+        function endTurn() {
+            playerEnded = true;
+            endGame();
+        }
+
+        function endGame() {
+            isGameOver = true;
+            const [playerPoints, playerDetails] = calculateScore(playerCollected);
+            const playerBaseScore = playerPoints;
+            const playerRoundScore = playerBaseScore * playerMultiplier;
+            const [aiPoints, aiDetails] = calculateScore(aiCollected);
+            const aiBaseScore = aiPoints;
+            const aiRoundScore = aiBaseScore * aiMultiplier;
+
+            let playerFinalScore = playerRoundScore;
+            let aiFinalScore = aiRoundScore;
+            let additionalMessage = "";
+
+            if (playerEnded) {
+                if (aiMultiplier > 1) {
+                    playerFinalScore += aiRoundScore;
+                    aiFinalScore = 0;
+                    additionalMessage += `\nAIが「こいこい」を宣言していたため、AIの得点（${aiRoundScore}点）がプレイヤーに渡りました。`;
+                }
+            } else {
+                if (playerMultiplier > 1 && playerRoundScore < aiRoundScore) {
+                    aiFinalScore += playerRoundScore;
+                    playerFinalScore = 0;
+                    additionalMessage += `\nプレイヤーが「こいこい」で負けたため、得点（${playerRoundScore}点）がAIに渡りました。`;
+                } else if (aiMultiplier > 1 && aiRoundScore < playerRoundScore) {
+                    playerFinalScore += aiRoundScore;
+                    aiFinalScore = 0;
+                    additionalMessage += `\nAIが「こいこい」で負けたため、得点（${aiRoundScore}点）がプレイヤーに渡りました。`;
+                }
+            }
+
+            playerTotalScore += playerFinalScore;
+            aiTotalScore += aiFinalScore;
+
+            document.getElementById("message").textContent = 
+                `第${currentRound}局終了！\n\n` +
+                `プレイヤー:\n` +
+                `  基本点: ${playerBaseScore}点\n` +
+                `  倍率: ${playerMultiplier}倍\n` +
+                `  役: ${playerDetails.join(", ")}\n` +
+                `  試合得点: ${playerRoundScore}点\n` +
+                `  最終得点: ${playerFinalScore}点\n\n` +
+                `AI:\n` +
+                `  基本点: ${aiBaseScore}点\n` +
+                `  倍率: ${aiMultiplier}倍\n` +
+                `  役: ${aiDetails.join(", ")}\n` +
+                `  試合得点: ${aiRoundScore}点\n` +
+                `  最終得点: ${aiFinalScore}点` +
+                additionalMessage;
+            renderGame();
+        }
+
+        function nextRound() {
+            currentRound++;
+            if (currentRound > totalRounds) {
+                const result = playerTotalScore > aiTotalScore ? "プレイヤーの勝利！" : 
+                              playerTotalScore < aiTotalScore ? "AIの勝利！" : "引き分け！";
+                document.getElementById("message").textContent = 
+                    `全${totalRounds}局終了！\nプレイヤー合計: ${playerTotalScore}点\nAI合計: ${aiTotalScore}点\n${result}`;
+                currentRound = 0;
+                renderGame();
+            } else {
+                initRound(totalRounds > 1 ? true : isPlayerTurn);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("start-1-player").addEventListener("click", () => startGame(1, true));
+            document.getElementById("start-1-ai").addEventListener("click", () => startGame(1, false));
+            document.getElementById("start-3").addEventListener("click", () => startGame(3, true));
+            document.getElementById("start-6").addEventListener("click", () => startGame(6, true));
+        });
+    </script>
+</body>
+</html>
