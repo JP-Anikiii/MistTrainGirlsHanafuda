@@ -469,14 +469,23 @@
                         showOptions(multiplier > 1);
                         return;
                     }
-                } else {
+                } else { // AIの場合
                     aiScore = newPoints;
-                    const potentialScore = estimatePotentialScore(aiHand, field);
-                    if (potentialScore + newPoints * aiMultiplier > playerScore * playerMultiplier && aiHand.length > 2) {
-                        aiMultiplier *= 2;
-                        document.getElementById("message").textContent = "AIが「こいこい」を宣言しました！";
-                        setTimeout(() => switchTurn("ai"), 1000);
-                        return;
+                    if (!isGameOver) {
+                        const potentialScore = estimatePotentialScore(aiHand, field);
+                        const aiPotentialTotal = potentialScore + newPoints * aiMultiplier;
+                        const playerCurrentTotal = playerScore * playerMultiplier;
+
+                        if (aiPotentialTotal > playerCurrentTotal && aiHand.length > 1) {
+                            aiMultiplier *= 2;
+                            document.getElementById("message").textContent = "AIが「こいこい」を宣言しました！";
+                            setTimeout(() => switchTurn("ai"), 1000);
+                            return;
+                        } else {
+                            document.getElementById("message").textContent = "AIが「上がり」を宣言しました！";
+                            setTimeout(() => endGame(), 1000);
+                            return;
+                        }
                     }
                 }
             }
@@ -666,5 +675,5 @@
             document.getElementById("start-6").addEventListener("click", () => startGame(6, true));
         });
     </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'92559655180cadcf',t:'MTc0MjgxMzIxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
