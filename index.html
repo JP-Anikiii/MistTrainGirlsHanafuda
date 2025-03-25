@@ -706,10 +706,10 @@
                     additionalMessage += `\nAIが「こいこい」を宣言していたため、AIの得点（${aiRoundScore}点）がプレイヤーに渡りました。`;
                 }
             } else {
-                if (playerMultiplier > 1 && playerRoundScore < aiRoundScore) {
+                if (playerMultiplier > 1) {
                     aiFinalScore += playerRoundScore;
                     playerFinalScore = 0;
-                    additionalMessage += `\nプレイヤーが「こいこい」で負けたため、得点（${playerRoundScore}点）がAIに渡りました。`;
+                    additionalMessage += `\nプレイヤーが「こいこい」を宣言していたため、得点（${playerRoundScore}点）がAIに渡りました。`;
                 } else if (aiMultiplier > 1 && aiRoundScore < playerRoundScore) {
                     playerFinalScore += aiRoundScore;
                     aiFinalScore = 0;
@@ -759,5 +759,5 @@
             document.getElementById("start-6").addEventListener("click", () => startGame(6, true));
         });
     </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'925dd84bd83fb066',t:'MTc0Mjg5OTgwMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
